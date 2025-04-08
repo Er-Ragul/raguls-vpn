@@ -1,0 +1,18 @@
+{
+  "name": "apiforvpn",
+  "version": "1.0.0",
+  "description": "Ragul's VPN API Server",
+  "license": "ISC",
+  "author": "H.Ragul",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "level": "^9.0.0",
+    "nodemon": "^3.1.9"
+  }
+}
