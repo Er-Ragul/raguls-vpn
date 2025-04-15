@@ -131,6 +131,54 @@ EOF
     }
 }
 
+function managePeer(req, res, next){
+
+    if(req.body.cmd == true){
+
+        let cmd = `wg set wg0 peer ${req.body.peer} allowed-ips 0.0.0.0/0,::/0`
+
+        return new Promise((resolve, reject) => {
+            exec(cmd, (error, stdout) => {
+                if (error) {
+                    reject(error.message)
+                    return
+                }
+                console.log(stdout);  // Log the successful output
+                resolve()
+            });
+        })
+        .then(() => {
+            next()
+        })
+        .catch((err) => {
+            console.error(`Error: ${err}`);
+            res.status(500).json({ error: err });
+        })
+    }
+    else{
+        
+        let cmd = `wg set wg0 peer ${req.body.peer} allowed-ips 0.0.0.0/24`
+
+        return new Promise((resolve, reject) => {
+            exec(cmd, (error, stdout) => {
+                if (error) {
+                    reject(error.message)
+                    return
+                }
+                console.log(stdout);  // Log the successful output
+                resolve()
+            });
+        })
+        .then(() => {
+            next()
+        })
+        .catch((err) => {
+            console.error(`Error: ${err}`);
+            res.status(500).json({ error: err });
+        })
+    }
+}
+
 function removePeer(req, res, next){
     let remove = `wg set wg0 peer ${req.body.peer} remove`
 
@@ -148,4 +196,4 @@ function removePeer(req, res, next){
     });
 }
 
-module.exports = { generateKeys, addPeer, serverConfig, removePeer }
+module.exports = { generateKeys, addPeer, serverConfig, managePeer, removePeer }

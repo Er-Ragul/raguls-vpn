@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const { Level } = require('level');
-const { generateKeys, serverConfig, addPeer, removePeer } = require('./middleware/commands');
+const QRCode = require('qrcode');
+const { generateKeys, serverConfig, addPeer, managePeer, removePeer } = require('./middleware/commands');
 
 app.use(cors());
 app.use(express.json());
@@ -25,8 +26,8 @@ async function database() {
     }
 }
 
-async function addRecord(name, ip, private, public) {
-    await db.put(ip, {name, ip, private, public})
+async function addRecord(name, ip, private, public, enabled) {
+    await db.put(ip, {name, ip, private, public, enabled})
     const value = await db.get(ip)
     console.log(value)
 }
@@ -38,6 +39,37 @@ async function deleteRecord(address){
     await db.put('reusable_ip', reuse)
 }
 
+async function updateRecord(address, cmd){
+    let value = await db.get(address)
+    value['enabled'] = cmd
+    await db.put(address, value)
+}
+
+async function createQr(address) {
+
+    let clientKey = await db.get(address)
+    let serverKey = await db.get('10.0.0.1')
+
+let template = `[Interface]
+PrivateKey = ${clientKey['private']}
+Address = ${address}/24
+
+[Peer]
+PublicKey = ${serverKey['public']}
+AllowedIPs = 0.0.0.0/0,::/0
+PersistentKeepalive = 25
+Endpoint = 192.168.209.136:5182`
+
+    // QRCode.toString(template, { type: 'terminal' }, function (err, url) {
+    //     if (err) return console.error(err);
+    //     console.log(url);
+    // });
+
+    QRCode.toFile(`qrcode/${address}.png`, template, function (err) {
+        if (err) throw err;
+        console.log('QR code saved to qrcode.png');
+    });
+}
 
 app.get('/', (req, res) => {
     res.send("Ragul's VPN API Server")
@@ -59,7 +91,7 @@ app.post('/add', generateKeys, addPeer, (req, res) => {
             if(reuseip.length != 0){
                 let allocated = reuseip.shift()
                 await db.put('reusable_ip', reuseip)
-                addRecord(req.body.name, allocated, req.keys.private, req.keys.public)
+                addRecord(req.body.name, allocated, req.keys.private, req.keys.public, true)
                 res.status(200).json({ status: 'success', ip: allocated, keys: req.keys, message: 'Added new peer connection' });
             }
             else{
@@ -69,7 +101,7 @@ app.post('/add', generateKeys, addPeer, (req, res) => {
                 if(parseInt(address[3]) <= 255){
                     address = `${address[0]}.${address[1]}.${address[2]}.${parseInt(address[3])+1}`
                     await db.put('ip_pool', address);
-                    addRecord(req.body.name, address, req.keys.private, req.keys.public)
+                    addRecord(req.body.name, address, req.keys.private, req.keys.public, true)
                     res.status(200).json({ status: 'success', ip: address, keys: req.keys, message: 'Added new peer connection' });
                 }
             }
@@ -87,6 +119,17 @@ app.post('/remove', removePeer, (req, res) => {
     try{
         deleteRecord(req.body.ip)
         res.status(200).json({ status: 'success', ip: req.body.ip, message: `Removed peer connection: ${req.body.ip}` })
+    }
+    catch(err){
+        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    }
+})
+
+/* Enable & disable connection */
+app.post('/switch', managePeer, (req, res) => {
+    try{
+        updateRecord(req.body.ip, req.body.cmd)
+        res.status(200).json({status: 'success', message: `connection ${req.body.cmd}`})
     }
     catch(err){
         res.status(500).json({ status: 'failed', message: 'Internal server error' });
@@ -115,6 +158,16 @@ app.get('/peers', (req, res) => {
         }
     }
     readAllData();
+})
+
+app.post('/qr', (req, res) => {
+    try{
+        createQr(req.body.ip)
+        res.status(200).json({status: 'success', message: 'QR created successfully'})
+    }
+    catch(err){
+        res.status(500).json({status: 'failed', message: 'Failed to create QR'})
+    }
 })
 
 app.listen(3000, () => {
