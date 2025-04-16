@@ -58,13 +58,15 @@ Address = ${address}/24
 PublicKey = ${serverKey['public']}
 AllowedIPs = 0.0.0.0/0,::/0
 PersistentKeepalive = 25
-Endpoint = 192.168.209.136:5182`
+Endpoint = ${process.env.SERVERIP}:51820`
+
+    console.log(template);
 
     // QRCode.toString(template, { type: 'terminal' }, function (err, url) {
     //     if (err) return console.error(err);
     //     console.log(url);
     // });
-
+    
     QRCode.toFile(`qrcode/${address}.png`, template, function (err) {
         if (err) throw err;
         console.log('QR code saved to qrcode.png');
@@ -147,7 +149,7 @@ app.get('/peers', (req, res) => {
             
             let respond = []
             result.map((value) => {
-                if(value.key != 'ip_pool' && value.key != 'reusable_ip'){
+                if(value.key != 'ip_pool' && value.key != 'reusable_ip' && value.key != '10.0.0.1'){
                     respond.push(value.value)
                 }
             })
@@ -170,6 +172,6 @@ app.post('/qr', (req, res) => {
     }
 })
 
-app.listen(3000, () => {
-    console.log(`Ragul's VPN API Server Running on Port: 3000`);
+app.listen(process.env.PORT, () => {
+    console.log(`Ragul's VPN API Server Running on Port: ${process.env.PORT}`);
 });

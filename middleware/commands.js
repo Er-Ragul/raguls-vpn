@@ -62,7 +62,7 @@ function generateKeys(req, res, next) {
 }
 
 function addPeer(req, res, next) {
-    let add = `wg set wg0 peer ${req.keys.public} endpoint 192.168.209.136:5182 allowed-ips 0.0.0.0/0,::/0 persistent-keepalive 25`;
+    let add = `wg set wg0 peer ${req.keys.public} endpoint ${process.env.SERVERIP}:5182 allowed-ips 0.0.0.0/0,::/0 persistent-keepalive 25`;
 
     exec(add, (error, stdout, stderr) => {
         if (error) {
@@ -132,7 +132,7 @@ EOF
 }
 
 function managePeer(req, res, next){
-
+    console.log(req.body.cmd);
     if(req.body.cmd == true){
 
         let cmd = `wg set wg0 peer ${req.body.peer} allowed-ips 0.0.0.0/0,::/0`
