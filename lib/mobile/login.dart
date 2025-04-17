@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:validart/validart.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
 
 class LoginMobile extends StatefulWidget {
   const LoginMobile({super.key});
@@ -10,19 +14,74 @@ class LoginMobile extends StatefulWidget {
 
 class _LoginMobileState extends State<LoginMobile> {
 
-  final TextEditingController email = TextEditingController();
+  final storage = FlutterSecureStorage();
   final TextEditingController password = TextEditingController();
+
+  void loginUserAccount() async {
+    final validPassword = Validart().string().min(8);
+
+    if(validPassword.validate(password.text)){
+      try{
+        String? result = await storage.read(key: 'user_data');
+
+        if(result != null){
+          final Map<String, dynamic> userData = jsonDecode(result);
+
+          final response = await http.post(
+            Uri.parse('http://192.168.209.136:3000/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({ 'email': userData['email'], 'password': password.text })
+          );
+
+          if(response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+
+            Map<String, dynamic> user = {
+              'uid': '${data['uid']}',
+              'endpoint': '${userData['endpoint']}',
+              'email': '${userData['email']}'
+            };
+
+            String result = jsonEncode(user);
+            await storage.write(key: 'user_data', value: result);    
+            
+            Navigator.pushReplacementNamed(context, '/dashboard');
+          } 
+          else{
+            print('POST request failed with status: ${response.statusCode}');
+          }
+        }
+        //Navigator.pushReplacementNamed(context, '/dashboard');
+      }
+      catch(err){
+        print(err);
+      }
+    }
+    else{
+      callAlert('Invalid Password', 'Password should not be less than 8 characters');
+    }
+  }
+
+  void callAlert(String title, String content){
+    showDialog(context: context, builder: (context) => AlertDialog(
+      actions: [
+        TextButton(onPressed: (){
+          Navigator.of(context).pop();
+        }, child: Text('Close'))
+      ],
+      //title: Text(title),
+      contentPadding: EdgeInsets.all(20),
+      content: Text(content),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Safearea & Container widget
       body: SafeArea(child: Container(
         width: double.infinity,
         color: Colors.deepPurpleAccent,
-        // Column
         child: Column(
-          // Row
           children: [
             Row(
               children: [
@@ -36,14 +95,12 @@ class _LoginMobileState extends State<LoginMobile> {
                 "Equipped with WireGuard", style: GoogleFonts.poppins(color: Colors.white)
               ))
             ]),
-            // Expanded & Container
             Expanded(child: Container(
               color: Colors.white,
               child: Center(
                 child: Padding(padding: EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                child: SingleChildScrollView( // SingleChildScrollView for smooth scroll
+                child: SingleChildScrollView(
                   physics: BouncingScrollPhysics(),
-                  // Column
                   child: Column(
                     children: [
                     // Title
@@ -54,16 +111,6 @@ class _LoginMobileState extends State<LoginMobile> {
                     // VPN logo
                     Image.asset('assets/vpn.png', width: 120),
                     SizedBox(height: 40),
-                    // Email inputbox
-                    TextField(
-                      controller: email,
-                      style: GoogleFonts.poppins(),
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        icon: Icon(Icons.email, color: Colors.deepPurpleAccent)
-                      ),
-                    ),
-                    SizedBox(height: 20),
                     // Password inputbox
                     TextField(
                       controller: password,
@@ -73,14 +120,13 @@ class _LoginMobileState extends State<LoginMobile> {
                         icon: Icon(Icons.password, color: Colors.deepPurpleAccent)
                       ),
                     ),
-                    // SizedBox
                     SizedBox(height: 50),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                       // Login button
                       ElevatedButton.icon(onPressed: (){
-                        
+                        loginUserAccount();
                       }, 
                       icon: Text('Login', style: GoogleFonts.poppins(color: Colors.white, fontSize: 18)),
                       label: Icon(Icons.login, color: Colors.white, size: 25),
@@ -92,7 +138,6 @@ class _LoginMobileState extends State<LoginMobile> {
                         )
                       )),
                       Text('    or    ', style: GoogleFonts.poppins()),
-                      // Direct VPN access button
                       ElevatedButton.icon(onPressed: (){
 
                       }, 
@@ -106,16 +151,14 @@ class _LoginMobileState extends State<LoginMobile> {
                         )
                       ))
                     ],),
-                    // SizedBox
                     SizedBox(height: 30),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                       Text("Don't have an account? ", style: GoogleFonts.poppins()),
-                      // Gesture detector
                       GestureDetector(
                         onTap: (){
-                 
+                          Navigator.pushNamed(context, '/signup');
                         },
                         child: Text('Sign Up', style: GoogleFonts.poppins(color: Colors.blueAccent, fontWeight: FontWeight.bold)))
                     ])

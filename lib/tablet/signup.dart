@@ -2,30 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:validart/validart.dart';
 
-class LoginTablet extends StatefulWidget {
-  const LoginTablet({super.key});
+class SignupTablet extends StatefulWidget {
+  const SignupTablet({super.key});
 
   @override
-  State<LoginTablet> createState() => _LoginTabletState();
+  State<SignupTablet> createState() => _SignupTabletState();
 }
 
-class _LoginTabletState extends State<LoginTablet> {
+class _SignupTabletState extends State<SignupTablet> {
 
   final TextEditingController email = TextEditingController();
   final TextEditingController password = TextEditingController();
+  final TextEditingController repassword = TextEditingController();
 
-  void loginUserAccount() async {
+  void createUserAccount() async {
+
     final validEmail = Validart().string().email();
     final validPassword = Validart().string().min(8);
 
     if(validEmail.validate(email.text)){
       if(validPassword.validate(password.text)){
-        try{
+        if(password.text == repassword.text){
+          try{
 
-          //Navigator.pushReplacementNamed(context, '/dashboard');
+            //Navigator.pushReplacementNamed(context, '/dashboard');
+          }
+          catch(err){
+            print(err);
+          }
         }
-        catch(err){
-          print(err);
+        else{
+          callAlert('Password Mismatch', 'Password is not matching');
         }
       }
       else{
@@ -88,7 +95,7 @@ class _LoginTabletState extends State<LoginTablet> {
                     children: [
                     // Title
                     Row(children: [
-                      Text('Login', style: GoogleFonts.poppins(color: Colors.deepPurpleAccent, fontSize: 30, fontWeight: FontWeight.bold))
+                      Text('Signup', style: GoogleFonts.poppins(color: Colors.deepPurpleAccent, fontSize: 30, fontWeight: FontWeight.bold))
                     ]),
                     SizedBox(height: 40),
                     // VPN logo
@@ -113,29 +120,26 @@ class _LoginTabletState extends State<LoginTablet> {
                         icon: Icon(Icons.password, color: Colors.deepPurpleAccent)
                       ),
                     ),
+                    SizedBox(height: 20),
+                    // Password inputbox
+                    TextField(
+                      controller: repassword,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Re-enter password',
+                        icon: Icon(Icons.password, color: Colors.deepPurpleAccent)
+                      ),
+                    ),
                     SizedBox(height: 50),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                       // Login button
                       ElevatedButton.icon(onPressed: (){
-                        loginUserAccount();
+                        createUserAccount();
                       }, 
-                      icon: Text('Login', style: GoogleFonts.poppins(color: Colors.white, fontSize: 18)),
-                      label: Icon(Icons.login, color: Colors.white, size: 25),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurpleAccent,
-                        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5)
-                        )
-                      )),
-                      Text('    or    ', style: GoogleFonts.poppins()),
-                      ElevatedButton.icon(onPressed: (){
-
-                      }, 
-                      icon: Text('Access VPN', style: GoogleFonts.poppins(color: Colors.white, fontSize: 18)),
-                      label: Icon(Icons.vpn_key, color: Colors.white, size: 25),
+                      icon: Text('Create Account', style: GoogleFonts.poppins(color: Colors.white, fontSize: 18)),
+                      label: Icon(Icons.account_box, color: Colors.white, size: 25),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.deepPurpleAccent,
                         padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
@@ -143,17 +147,17 @@ class _LoginTabletState extends State<LoginTablet> {
                           borderRadius: BorderRadius.circular(5)
                         )
                       ))
-                    ],),
+                    ]),
                     SizedBox(height: 30),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                      Text("Don't have an account? ", style: GoogleFonts.poppins()),
+                      Text("Already have an account? ", style: GoogleFonts.poppins()),
                       GestureDetector(
                         onTap: (){
-                          Navigator.pushNamed(context, '/signup');
+                          Navigator.pushNamed(context, '/');
                         },
-                        child: Text('Sign Up', style: GoogleFonts.poppins(color: Colors.blueAccent, fontWeight: FontWeight.bold)))
+                        child: Text('Login In', style: GoogleFonts.poppins(color: Colors.blueAccent, fontWeight: FontWeight.bold)))
                     ])
                   ],
                   ))),)
