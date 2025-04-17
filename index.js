@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const app = express();
+const bcrypt = require('bcrypt');
 const { Level } = require('level');
 const QRCode = require('qrcode');
 const { generateKeys, serverConfig, addPeer, managePeer, removePeer } = require('./middleware/commands');
@@ -8,47 +9,73 @@ const { generateKeys, serverConfig, addPeer, managePeer, removePeer } = require(
 app.use(cors());
 app.use(express.json());
 
-const db = new Level('leveldb', { valueEncoding: 'json' })
+const netdb = new Level('netdb', { valueEncoding: 'json' })
+const userdb = new Level('userdb', { valueEncoding: 'json' })
 
 database()
 async function database() {
-    let address = await db.get('ip_pool')
-    let reusable = await db.get('reusable_ip')
+    let address = await netdb.get('ip_pool')
+    let reusable = await netdb.get('reusable_ip')
 
     if(address == undefined){
         console.log("IP Pool Created")
-        await db.put('ip_pool', '10.0.0.1');
+        await netdb.put('ip_pool', '10.0.0.1');
     }
     
     if(reusable == undefined){
         console.log("Reusable IP Initiated")
-        await db.put('reusable_ip', [])
+        await netdb.put('reusable_ip', [])
     }
 }
 
 async function addRecord(name, ip, private, public, enabled) {
-    await db.put(ip, {name, ip, private, public, enabled})
-    const value = await db.get(ip)
+    await netdb.put(ip, {name, ip, private, public, enabled})
+    const value = await netdb.get(ip)
     console.log(value)
 }
 
 async function deleteRecord(address){
-    await db.del(address)
-    let reuse = await db.get('reusable_ip')
+    await netdb.del(address)
+    let reuse = await netdb.get('reusable_ip')
     reuse.push(address)
-    await db.put('reusable_ip', reuse)
+    await netdb.put('reusable_ip', reuse)
 }
 
 async function updateRecord(address, cmd){
-    let value = await db.get(address)
+    let value = await netdb.get(address)
     value['enabled'] = cmd
-    await db.put(address, value)
+    await netdb.put(address, value)
+}
+
+/* To create/add new user */
+async function addUser(email, password, uid) {
+    await userdb.put(email, {email, password, uid})
+}
+
+async function getUser(req, res, next) {
+
+    let { email, password } = req.body
+
+    const value = await userdb.get(email)
+
+    bcrypt.compare(password, value['password'], async function(err, result){
+        if(result){
+            let uid = new Date().getTime()
+            req.uid = uid
+            console.log(uid);
+            await userdb.put(email, {email, password: value['password'], uid})
+            next()
+        }
+        else{
+            res.status(401).json({status: 'failed', uid, message: 'Invalid password'});
+        }
+    });
 }
 
 async function createQr(address) {
 
-    let clientKey = await db.get(address)
-    let serverKey = await db.get('10.0.0.1')
+    let clientKey = await netdb.get(address)
+    let serverKey = await netdb.get('10.0.0.1')
 
 let template = `[Interface]
 PrivateKey = ${clientKey['private']}
@@ -76,6 +103,28 @@ Endpoint = ${process.env.SERVERIP}:51820`
 app.get('/', (req, res) => {
     res.send("Ragul's VPN API Server")
 });
+
+
+app.post('/signup', (req, res) => {
+
+    let { email, password } = req.body
+
+    try{
+        bcrypt.hash(password, 10, function(err, hash) {
+            let uid = new Date().getTime()
+            addUser(email, hash, uid);
+            res.status(200).json({status: 'success', uid, message: 'User created successfully'});
+        });
+    }
+    catch(err){
+        res.status(500).json({status: 'failed', message: 'Failed to create user.'})
+    }
+})
+
+app.post('/login', getUser, (req, res) => {
+    console.log(req.uid);
+    res.status(200).json({status: 'success', uid: req.uid, message: 'User authenticated successfully'});
+})
 
 /* Runs wireguard server */
 app.get('/init', generateKeys, serverConfig, (req, res) => {
