@@ -47,9 +47,21 @@ async function updateRecord(address, cmd){
     await netdb.put(address, value)
 }
 
-/* To create/add new user */
-async function addUser(email, password, uid) {
-    await userdb.put(email, {email, password, uid})
+async function setUser(req, res, next) {
+
+    let { email, password } = req.body
+
+    try{
+        bcrypt.hash(password, 10, async function(err, hash) {
+            let uid = new Date().getTime()
+            req.uid = uid
+            await userdb.put(email, {email, password, uid})
+            next()
+        });
+    }
+    catch(err){
+        res.status(500).json({status: 'failed', message: 'Failed to create user.'})
+    }
 }
 
 async function getUser(req, res, next) {
@@ -62,7 +74,6 @@ async function getUser(req, res, next) {
         if(result){
             let uid = new Date().getTime()
             req.uid = uid
-            console.log(uid);
             await userdb.put(email, {email, password: value['password'], uid})
             next()
         }
@@ -79,7 +90,7 @@ async function createQr(address) {
 
 let template = `[Interface]
 PrivateKey = ${clientKey['private']}
-Address = ${address}/24
+Address = ${address}/32
 
 [Peer]
 PublicKey = ${serverKey['public']}
@@ -100,29 +111,61 @@ Endpoint = ${process.env.SERVERIP}:51820`
     });
 }
 
+
+async function reserveIP(req, res, next){
+    try{
+        let reuseip = await netdb.get('reusable_ip')
+        console.log(reuseip);
+        if(reuseip.length != 0){
+            let allocated = reuseip.shift()
+            await netdb.put('reusable_ip', reuseip)
+
+            let iptype = {
+                address: allocated,
+                type: 'reuse'
+            }
+
+            req.iptype = iptype
+
+            addRecord(req.body.name, allocated, req.keys.private, req.keys.public, true)
+            next()
+        }
+        else{
+            let allocated = await netdb.get('ip_pool')
+            allocated = allocated.split('.')
+        
+            if(parseInt(allocated[3]) <= 255){
+                allocated = `${allocated[0]}.${allocated[1]}.${allocated[2]}.${parseInt(allocated[3])+1}`
+                await netdb.put('ip_pool', allocated);
+
+                let iptype = {
+                    address: allocated,
+                    type: 'pool'
+                }
+
+                req.iptype = iptype
+
+                addRecord(req.body.name, allocated, req.keys.private, req.keys.public, true)
+                next()
+            }
+        }
+    }
+    catch(err){
+        console.log(err);
+        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    }
+}
+
 app.get('/', (req, res) => {
     res.send("Ragul's VPN API Server")
 });
 
 
-app.post('/signup', (req, res) => {
-
-    let { email, password } = req.body
-
-    try{
-        bcrypt.hash(password, 10, function(err, hash) {
-            let uid = new Date().getTime()
-            addUser(email, hash, uid);
-            res.status(200).json({status: 'success', uid, message: 'User created successfully'});
-        });
-    }
-    catch(err){
-        res.status(500).json({status: 'failed', message: 'Failed to create user.'})
-    }
+app.post('/signup', setUser, (req, res) => {
+    res.status(200).json({status: 'success', uid, message: 'User created successfully'});
 })
 
 app.post('/login', getUser, (req, res) => {
-    console.log(req.uid);
     res.status(200).json({status: 'success', uid: req.uid, message: 'User authenticated successfully'});
 })
 
@@ -134,35 +177,8 @@ app.get('/init', generateKeys, serverConfig, (req, res) => {
 
 
 /* Add new connection */
-app.post('/add', generateKeys, addPeer, (req, res) => {
-    async function reserveIP(){
-        try{
-            let reuseip = await db.get('reusable_ip')
-            console.log(reuseip);
-            if(reuseip.length != 0){
-                let allocated = reuseip.shift()
-                await db.put('reusable_ip', reuseip)
-                addRecord(req.body.name, allocated, req.keys.private, req.keys.public, true)
-                res.status(200).json({ status: 'success', ip: allocated, keys: req.keys, message: 'Added new peer connection' });
-            }
-            else{
-                let address = await db.get('ip_pool')
-                address = address.split('.')
-            
-                if(parseInt(address[3]) <= 255){
-                    address = `${address[0]}.${address[1]}.${address[2]}.${parseInt(address[3])+1}`
-                    await db.put('ip_pool', address);
-                    addRecord(req.body.name, address, req.keys.private, req.keys.public, true)
-                    res.status(200).json({ status: 'success', ip: address, keys: req.keys, message: 'Added new peer connection' });
-                }
-            }
-        }
-        catch(err){
-            console.log(err);
-            res.status(500).json({ status: 'failed', message: 'Internal server error' });
-        }
-    }
-    reserveIP()
+app.post('/add', generateKeys, reserveIP, addPeer, (req, res) => {
+    res.status(200).json({ status: 'success', ip: req.iptype.address, keys: req.keys, message: 'Added new peer connection' });
 });
 
 /* Remove the connection */
@@ -180,7 +196,7 @@ app.post('/remove', removePeer, (req, res) => {
 app.post('/switch', managePeer, (req, res) => {
     try{
         updateRecord(req.body.ip, req.body.cmd)
-        res.status(200).json({status: 'success', message: `connection ${req.body.cmd}`})
+        res.status(200).json({status: 'success', message: `connection set to ${req.body.cmd}`})
     }
     catch(err){
         res.status(500).json({ status: 'failed', message: 'Internal server error' });
@@ -192,7 +208,7 @@ app.get('/peers', (req, res) => {
     async function readAllData() {
         try {
             let result = []
-            for await (const [key, value] of db.iterator()) {
+            for await (const [key, value] of netdb.iterator()) {
                 result.push({key, value})
             }
             

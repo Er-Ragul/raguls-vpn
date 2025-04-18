@@ -1,151 +1,99 @@
-const { exec } = require('child_process');
+const { exec, execSync } = require('child_process');
+const fs = require('fs');
 
-/* To create new connection or peer */
+/* To generate private and public key */
 function generateKeys(req, res, next) {
-    let keys = {
-        private: null,
-        public: null
-    }
+    return new Promise((resolve, reject) => {
+        const privateKey = execSync('wg genkey').toString().trim();
 
-    private()
+        const publicKey = execSync(`echo ${privateKey} | wg pubkey`).toString().trim();
 
-    function private() {
-        return new Promise((resolve, reject) => {
-            exec('wg genkey', (error, stdout, stderr) => {
-                if (error) {
-                    reject(error.message);
-                    return;
-                }
-                if (stderr) {
-                    reject(stderr);
-                    return;
-                }
-                keys.private = stdout.trim();
-                console.log('Private Key:', stdout.trim());
-                resolve()
-            })
-        })
-        .then(() => {
-            public(keys.private)
-        })
-        .catch((err) => {
-            console.error(`Error: ${err}`);
-            res.status(500).json({ error: err.message });
-        })
-    }
+        let keys = {
+            private: privateKey,
+            public: publicKey
+        }
 
-    function public(privateKey) {
-        return new Promise((resolve, reject) => {
-            exec(`echo "${privateKey}" | wg pubkey`, (error, stdout, stderr) => {
-                if (error) {
-                    reject(error.message);
-                    return;
-                }
-                if (stderr) {
-                    reject(stderr);
-                    return;
-                }
-                keys.public = stdout.trim();
-                console.log('Public Key:', stdout.trim());
-                resolve()
-            })
-        })
-        .then(() => {
-            req.keys = keys
-            next()
-        })
-        .catch((err) => {
-            console.error(`Error: ${err}`);
-            res.status(500).json({ error: err.message });
-        })
-    }
+        req.keys = keys
+        resolve()
+    })
+    .then(() => {
+        console.log(req.keys);
+        next()
+    })
+    .catch((err) => {
+        console.error(`Error: ${err}`);
+        res.status(500).json({ error: err });
+    })
 }
 
+/* To create or new peer */
 function addPeer(req, res, next) {
-    let add = `wg set wg0 peer ${req.keys.public} endpoint ${process.env.SERVERIP}:5182 allowed-ips 0.0.0.0/0,::/0 persistent-keepalive 25`;
+    return new Promise((resolve, reject) => {
+        let add = `wg set wg0 peer ${req.keys.public} endpoint ${process.env.SERVERIP}:5182 allowed-ips ${req.iptype.address}/32 persistent-keepalive 25`;
 
-    exec(add, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Error: ${error.message}`);
-            return res.status(500).json({ error: error.message });
+        try {
+            execSync(add);
+            console.log('Peer added successfully.');
+            resolve()
+        } catch (err) {
+            reject()
+            console.error('Failed to add peer:', err.message);
         }
-        if (stderr) {
-            console.error(`stderr: ${stderr}`);
-            return res.status(500).json({ error: stderr });
-        }
-        console.log(stdout);  // Log the successful output
-        next();  // Move to the next middleware
-    });
+    })
+    .then(() => {
+        next()
+    })
+    .catch((err) => {
+        console.error(`Error: ${err}`);
+        res.status(500).json({ error: err });
+    })
 }
-/* To create new connection or peer */
 
-
+/* To configure and run the server */
 function serverConfig(req, res, next) {
-    let config = `
-    bash -c 'cat > /etc/wireguard/wg0.conf <<EOF
-[Interface]
-Address = 10.0.0.1/24
-ListenPort = 51820
+
+    return new Promise((resolve, reject) => {
+        const wgConfig = `
+        [Interface]
 PrivateKey = ${req.keys.private}
-EOF
-    '`;
+Address = 10.0.0.1/32
+ListenPort = 51820`
 
-    createFile()
+        fs.writeFile('/etc/wireguard/wg0.conf', wgConfig.trim(), { mode: 0o600 }, (err) => {
+            if (err) {
+                console.error('Failed to write wg0.conf:', err.message);
+            } else {
+                let run = `wg-quick up wg0`;
 
-    function createFile(){
-        return new Promise((resolve, reject) => {
-            exec(config, (error, stdout) => {
-                if (error) {
-                    reject(error.message)
-                    return
+                try {
+                    execSync(run);
+                    console.log('Wireguard (wg0) started successfully');
+                    resolve()
+                } catch (err) {
+                    reject()
+                    console.error('Failed to start wg0:', err.message);
                 }
-                console.log(stdout);  // Log the successful output
-                resolve()
-            })
-        }).then(() => {
-            runServer()
-        }).catch((err) => {
-            console.error(`Error: ${err}`);
-            res.status(500).json({ error: err });
-        })
-    }
-
-    function runServer(){
-        return new Promise((resolve, reject) => {
-            exec("wg-quick up wg0", (error, stdout) => {
-                if (error) {
-                    reject(error.message)
-                    return
-                }
-                console.log(stdout);  // Log the successful output
-                resolve()
-            });
-        })
-        .then(() => {
-            next()
-        })
-        .catch((err) => {
-            console.error(`Error: ${err}`);
-            res.status(500).json({ error: err });
-        })
-    }
+            }
+        });
+    })
+    .then(() => {
+        next()
+    })
+    .catch((err) => {
+        console.error(`Error: ${err}`);
+        res.status(500).json({ error: err });
+    })
 }
 
+/* To block or unblock the peer */
 function managePeer(req, res, next){
-    console.log(req.body.cmd);
-    if(req.body.cmd == true){
 
-        let cmd = `wg set wg0 peer ${req.body.peer} allowed-ips 0.0.0.0/0,::/0`
+    if(req.body.cmd == true){
+        let cmd = `wg set wg0 peer ${req.body.peer} allowed-ips ${req.body.ip}/32`
 
         return new Promise((resolve, reject) => {
-            exec(cmd, (error, stdout) => {
-                if (error) {
-                    reject(error.message)
-                    return
-                }
-                console.log(stdout);  // Log the successful output
-                resolve()
-            });
+            execSync(cmd);
+            resolve()
         })
         .then(() => {
             next()
@@ -156,18 +104,11 @@ function managePeer(req, res, next){
         })
     }
     else{
-        
-        let cmd = `wg set wg0 peer ${req.body.peer} allowed-ips 0.0.0.0/24`
+        let cmd = `wg set wg0 peer ${req.body.peer} allowed-ips 0.0.0.0/32`
 
         return new Promise((resolve, reject) => {
-            exec(cmd, (error, stdout) => {
-                if (error) {
-                    reject(error.message)
-                    return
-                }
-                console.log(stdout);  // Log the successful output
-                resolve()
-            });
+            execSync(cmd);
+            resolve()
         })
         .then(() => {
             next()
@@ -179,21 +120,21 @@ function managePeer(req, res, next){
     }
 }
 
+/* To remove the peer */
 function removePeer(req, res, next){
     let remove = `wg set wg0 peer ${req.body.peer} remove`
 
-    exec(remove, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Error: ${error.message}`);
-            return res.status(500).json({ error: error.message });
-        }
-        if (stderr) {
-            console.error(`stderr: ${stderr}`);
-            return res.status(500).json({ error: stderr });
-        }
-        console.log(stdout);
-        next();
-    });
+    return new Promise((resolve, reject) => {
+        execSync(remove);
+        resolve()
+    })
+    .then(() => {
+        next()
+    })
+    .catch((err) => {
+        console.error(`Error: ${err}`);
+        res.status(500).json({ error: err });
+    })
 }
 
 module.exports = { generateKeys, addPeer, serverConfig, managePeer, removePeer }
