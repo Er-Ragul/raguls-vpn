@@ -1,9 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const app = express();
+const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { Level } = require('level');
 const QRCode = require('qrcode');
+const fs = require('fs');
+const path = require('path');
 const { generateKeys, serverConfig, addPeer, managePeer, removePeer } = require('./middleware/commands');
 
 app.use(cors());
@@ -55,7 +58,7 @@ async function setUser(req, res, next) {
         bcrypt.hash(password, 10, async function(err, hash) {
             let uid = new Date().getTime()
             req.uid = uid
-            await userdb.put(email, {email, password, uid})
+            await userdb.put(uid, {email, hash, uid})
             next()
         });
     }
@@ -66,52 +69,87 @@ async function setUser(req, res, next) {
 
 async function getUser(req, res, next) {
 
-    let { email, password } = req.body
+    let { uid, password } = req.body
 
-    const value = await userdb.get(email)
+    const value = await userdb.get(uid)
 
-    bcrypt.compare(password, value['password'], async function(err, result){
+    bcrypt.compare(password, value.hash, async function(err, result){
         if(result){
-            let uid = new Date().getTime()
-            req.uid = uid
-            await userdb.put(email, {email, password: value['password'], uid})
+            const token = jwt.sign({ userid: value['uid'] }, 'SECRET_KEY', { expiresIn: '1h' });
+            req.token = token
             next()
         }
         else{
+            console.log(err);
             res.status(401).json({status: 'failed', uid, message: 'Invalid password'});
         }
     });
 }
 
-async function createQr(address) {
-
-    let clientKey = await netdb.get(address)
-    let serverKey = await netdb.get('10.0.0.1')
-
-let template = `[Interface]
+async function createQr(req, res, next) {
+    try{
+        let clientKey = await netdb.get(req.body.ip)
+        let serverKey = await netdb.get('10.0.0.1')
+    
+    let template = `[Interface]
 PrivateKey = ${clientKey['private']}
-Address = ${address}/32
+Address = ${req.body.ip}/24
 
 [Peer]
 PublicKey = ${serverKey['public']}
 AllowedIPs = 0.0.0.0/0,::/0
 PersistentKeepalive = 25
 Endpoint = ${process.env.SERVERIP}:51820`
-
-    console.log(template);
-
-    // QRCode.toString(template, { type: 'terminal' }, function (err, url) {
-    //     if (err) return console.error(err);
-    //     console.log(url);
-    // });
     
-    QRCode.toFile(`qrcode/${address}.png`, template, function (err) {
-        if (err) throw err;
-        console.log('QR code saved to qrcode.png');
-    });
+        console.log(template);
+    
+        // QRCode.toString(template, { type: 'terminal' }, function (err, url) {
+        //     if (err) return console.error(err);
+        //     console.log(url);
+        // });
+        
+        QRCode.toFile(`qrcode/${req.body.ip}.png`, template, function (err) {
+            if(err) {
+                res.status(500).json({status: 'failed', message: 'Failed to create QR'})
+            }
+            
+            const fileData = fs.readFileSync(`qrcode/${req.body.ip}.png`);
+
+            const base64String = fileData.toString('base64');
+
+            const ext = path.extname(`qrcode/${req.body.ip}.png`).substring(1); // remove dot
+            const mimeType = `image/${ext}`;
+
+            req.qrcode = `data:${mimeType};base64,${base64String}`
+
+            next()
+        });
+    }
+    catch(err){
+        console.log(err);
+        res.status(500).json({status: 'failed', message: 'Failed to create QR'})
+    }
 }
 
+/* Verify token */
+function verifyToken(req, res, next){
+    const authHeader = req.headers.authorization;
 
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ status: 'failed', message: "No token provided" });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(token, 'SECRET_KEY');
+        next()
+    } catch (err) {
+        res.status(401).json({ message: "Invalid token" });
+    }
+}
+
+/* Reserver or reuse ip address */
 async function reserveIP(req, res, next){
     try{
         let reuseip = await netdb.get('reusable_ip')
@@ -156,17 +194,38 @@ async function reserveIP(req, res, next){
     }
 }
 
+/* Get all peers */
+async function getAllPeers(req, res, next) {
+    try {
+        let result = []
+        for await (const [key, value] of netdb.iterator()) {
+            result.push({key, value})
+        }
+        
+        let respond = []
+        result.map((value) => {
+            if(value.key != 'ip_pool' && value.key != 'reusable_ip' && value.key != '10.0.0.1'){
+                respond.push(value.value)
+            }
+        })
+        req.peers = respond
+        next()
+    } catch (err) {
+        console.error('Error while reading data:', err);
+        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    }
+}
+
 app.get('/', (req, res) => {
     res.send("Ragul's VPN API Server")
 });
 
-
 app.post('/signup', setUser, (req, res) => {
-    res.status(200).json({status: 'success', uid, message: 'User created successfully'});
+    res.status(200).json({status: 'success', uid: req.uid, message: 'User created successfully'});
 })
 
 app.post('/login', getUser, (req, res) => {
-    res.status(200).json({status: 'success', uid: req.uid, message: 'User authenticated successfully'});
+    res.status(200).json({status: 'success', uid: req.uid, token: req.token, message: 'User authenticated successfully'});
 })
 
 /* Runs wireguard server */
@@ -177,23 +236,13 @@ app.get('/init', generateKeys, serverConfig, (req, res) => {
 
 
 /* Add new connection */
-app.post('/add', generateKeys, reserveIP, addPeer, (req, res) => {
+app.post('/add', verifyToken, generateKeys, reserveIP, addPeer, (req, res) => {
+    console.log(req.name, req.headers.authorization);
     res.status(200).json({ status: 'success', ip: req.iptype.address, keys: req.keys, message: 'Added new peer connection' });
 });
 
-/* Remove the connection */
-app.post('/remove', removePeer, (req, res) => {
-    try{
-        deleteRecord(req.body.ip)
-        res.status(200).json({ status: 'success', ip: req.body.ip, message: `Removed peer connection: ${req.body.ip}` })
-    }
-    catch(err){
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
-    }
-})
-
 /* Enable & disable connection */
-app.post('/switch', managePeer, (req, res) => {
+app.post('/switch', verifyToken, managePeer, (req, res) => {
     try{
         updateRecord(req.body.ip, req.body.cmd)
         res.status(200).json({status: 'success', message: `connection set to ${req.body.cmd}`})
@@ -203,38 +252,24 @@ app.post('/switch', managePeer, (req, res) => {
     }
 })
 
-/* Active connection */
-app.get('/peers', (req, res) => {
-    async function readAllData() {
-        try {
-            let result = []
-            for await (const [key, value] of netdb.iterator()) {
-                result.push({key, value})
-            }
-            
-            let respond = []
-            result.map((value) => {
-                if(value.key != 'ip_pool' && value.key != 'reusable_ip' && value.key != '10.0.0.1'){
-                    respond.push(value.value)
-                }
-            })
-            res.status(200).json({ status: 'success', peers: respond })
-        } catch (err) {
-            console.error('Error while reading data:', err);
-            res.status(500).json({ status: 'failed', message: 'Internal server error' });
-        }
-    }
-    readAllData();
-})
-
-app.post('/qr', (req, res) => {
+/* Remove the connection */
+app.post('/remove', verifyToken, removePeer, (req, res) => {
     try{
-        createQr(req.body.ip)
-        res.status(200).json({status: 'success', message: 'QR created successfully'})
+        deleteRecord(req.body.ip)
+        res.status(200).json({ status: 'success', ip: req.body.ip, message: `Removed peer connection: ${req.body.ip}` })
     }
     catch(err){
-        res.status(500).json({status: 'failed', message: 'Failed to create QR'})
+        res.status(500).json({ status: 'failed', message: 'Internal server error' });
     }
+})
+
+/* List peers */
+app.get('/peers', verifyToken, getAllPeers, (req, res) => {
+    res.status(200).json({ status: 'success', peers: req.peers });
+})
+
+app.post('/qr', createQr, (req, res) => {
+    res.status(200).json({status: 'success', qr: req.qrcode, message: 'QR created successfully'})
 })
 
 app.listen(process.env.PORT, () => {

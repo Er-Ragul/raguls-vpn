@@ -56,7 +56,7 @@ function serverConfig(req, res, next) {
         const wgConfig = `
         [Interface]
 PrivateKey = ${req.keys.private}
-Address = 10.0.0.1/32
+Address = 10.0.0.1/24
 ListenPort = 51820`
 
         fs.writeFile('/etc/wireguard/wg0.conf', wgConfig.trim(), { mode: 0o600 }, (err) => {
