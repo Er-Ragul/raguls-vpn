@@ -18,7 +18,7 @@ class _LoaderState extends State<Loader> {
     String? result = await storage.read(key: 'user_data');
 
     if(result != null){
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      Navigator.pushReplacementNamed(context, '/dashboard', arguments: result);
     }
     else{
       Navigator.pushReplacementNamed(context, '/');
@@ -28,7 +28,7 @@ class _LoaderState extends State<Loader> {
   @override
   void initState(){
     super.initState();
-    checkLogin();
+    //checkLogin();
   }
 
   @override

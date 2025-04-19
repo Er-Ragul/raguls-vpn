@@ -37,24 +37,24 @@ class _SignupMobileState extends State<SignupMobile> {
           if(password.text == repassword.text){
             try{
               final response = await http.post(
-                Uri.parse('http://192.168.209.136:3000/signup'),
+                Uri.parse('http://${endpoint.text}/signup'),
                 headers: {'Content-Type': 'application/json'},
                 body: jsonEncode({ 'email': email.text, 'password': password.text })
               );
 
               if(response.statusCode == 200) {
-                final data = jsonDecode(response.body);
+                final received = jsonDecode(response.body);
 
                 Map<String, dynamic> user = {
-                  'uid': '${data['uid']}',
+                  'uid': received['uid'],
                   'endpoint': '${endpoint.text}',
-                  'email': '${email.text}'
+                  'token': null
                 };
 
                 String result = jsonEncode(user);
                 await storage.write(key: 'user_data', value: result);    
                 
-                Navigator.pushReplacementNamed(context, '/dashboard');
+                Navigator.pushReplacementNamed(context, '/login');
               } 
               else{
                 print('POST request failed with status: ${response.statusCode}');

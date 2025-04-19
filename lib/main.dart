@@ -6,10 +6,10 @@ import 'package:ragulsvpn/_dashboard.dart';
 
 void main(){
   runApp(MaterialApp(
-    initialRoute: "/",
+    initialRoute: "/login",
     routes: {
-      "/": (context) => Login(),
-      "/loader": (context) => Loader(),
+      "/": (context) => Loader(),
+      "/login": (context) => Login(),
       "/signup": (context) => Signup(),
       "/dashboard": (context) => Dashboard()
     },

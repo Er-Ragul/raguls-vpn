@@ -24,34 +24,36 @@ class _LoginMobileState extends State<LoginMobile> {
       try{
         String? result = await storage.read(key: 'user_data');
 
+        print('checks ${result}');
+        print('checks ${password.text}');
+
         if(result != null){
           final Map<String, dynamic> userData = jsonDecode(result);
 
           final response = await http.post(
-            Uri.parse('http://192.168.209.136:3000/login'),
+            Uri.parse('http://${userData['endpoint']}/login'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({ 'email': userData['email'], 'password': password.text })
+            body: jsonEncode({ 'uid': userData['uid'], 'password': password.text })
           );
 
           if(response.statusCode == 200) {
-            final data = jsonDecode(response.body);
+            final received = jsonDecode(response.body);
 
             Map<String, dynamic> user = {
-              'uid': '${data['uid']}',
-              'endpoint': '${userData['endpoint']}',
-              'email': '${userData['email']}'
+              'uid': userData['uid'],
+              'endpoint': userData['endpoint'],
+              'token': received['token']
             };
 
             String result = jsonEncode(user);
             await storage.write(key: 'user_data', value: result);    
             
-            Navigator.pushReplacementNamed(context, '/dashboard');
+            Navigator.pushReplacementNamed(context, '/dashboard', arguments: {'token': received['token'], 'endpoint': userData['endpoint']});
           } 
           else{
             print('POST request failed with status: ${response.statusCode}');
           }
         }
-        //Navigator.pushReplacementNamed(context, '/dashboard');
       }
       catch(err){
         print(err);

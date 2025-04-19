@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:validart/validart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class PanelMobile extends StatefulWidget {
   const PanelMobile({super.key});
@@ -13,17 +15,32 @@ class PanelMobile extends StatefulWidget {
 
 class _PanelMobileState extends State<PanelMobile> {
 
+  String endpoint = '';
+  String token = '';
   bool enable = false;
   List<dynamic> peers = [];
   final TextEditingController name = TextEditingController();
+  final storage = FlutterSecureStorage();
 
+  @override
   void initState(){
     super.initState();
-    getPeers();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if(args != null){
+        token = args['token'];
+        endpoint = args['endpoint'];
+        print('checks $args');
+        getPeers();
+      }
+    });
   }
 
   Future<void> getPeers() async {
-    final response = await http.get(Uri.parse('http://192.168.209.136:3000/peers'));
+    final response = await http.get(Uri.parse('http://${endpoint}/peers'), 
+      headers: {'Authorization': 'Bearer ${token}'}
+    );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -40,8 +57,11 @@ class _PanelMobileState extends State<PanelMobile> {
 
     if(validName.validate(name.text)){
       final response = await http.post(
-        Uri.parse('http://192.168.209.136:3000/add'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('http://${endpoint}/add'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
         body: jsonEncode({ 'name': name.text }),
       );
 
@@ -61,8 +81,11 @@ class _PanelMobileState extends State<PanelMobile> {
 
   Future<void> removePeer(peer, ip) async {
     final response = await http.post(
-      Uri.parse('http://192.168.209.136:3000/remove'),
-      headers: {'Content-Type': 'application/json'},
+      Uri.parse('http://${endpoint}/remove'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token'
+      },
       body: jsonEncode({ 'peer': peer, 'ip': ip }),
     );
 
@@ -77,8 +100,11 @@ class _PanelMobileState extends State<PanelMobile> {
 
   Future<void> switchPeer(ip, peer, cmd) async {
     final response = await http.post(
-      Uri.parse('http://192.168.209.136:3000/switch'),
-      headers: {'Content-Type': 'application/json'},
+      Uri.parse('http://${endpoint}/switch'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token'  
+      },
       body: jsonEncode({ 'ip': ip, 'peer': peer, 'cmd': cmd }),
     );
 
@@ -86,6 +112,52 @@ class _PanelMobileState extends State<PanelMobile> {
       final data = jsonDecode(response.body);
       print('POST Response: $data');
       getPeers();
+    } else {
+      print('POST request failed with status: ${response.statusCode}');
+    }
+  }
+
+  Future<void> displayQrcode(address) async {
+
+    final response = await http.post(
+      Uri.parse('http://${endpoint}/qr'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token'  
+      },
+      body: jsonEncode({ 'ip': address }),
+    );
+
+    if (response.statusCode == 200) {
+      final received = jsonDecode(response.body);
+      final String base64Str = received['qr'];
+
+      final String cleanedBase64 = base64Str.contains(',')
+          ? base64Str.split(',')[1]
+          : base64Str;
+
+      Uint8List imageBytes = base64Decode(cleanedBase64);
+
+      showModalBottomSheet(context: context, builder: (context){
+        return Container(
+          width: double.infinity,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Scan QR'),
+              Image.memory(imageBytes),
+              ElevatedButton(onPressed: (){
+                Navigator.pop(context);
+              }, 
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+              ),
+              child: Text('Close', style: GoogleFonts.poppins(color: Colors.white)))
+            ],
+          )
+        );
+      });
+
     } else {
       print('POST request failed with status: ${response.statusCode}');
     }
@@ -106,6 +178,7 @@ class _PanelMobileState extends State<PanelMobile> {
 
   @override
   Widget build(BuildContext context) {
+    getPeers();
     return Scaffold(
       appBar: AppBar(title: Text('Connection Panel', style: GoogleFonts.poppins(color: Colors.white)), 
       backgroundColor: Colors.deepPurpleAccent, 
@@ -150,7 +223,9 @@ class _PanelMobileState extends State<PanelMobile> {
                   })),
                   // Scan QR
                   Padding(padding: EdgeInsets.all(8),
-                  child: GestureDetector(child: Icon(Icons.qr_code, size: 35), onTap: (){})),
+                  child: GestureDetector(child: Icon(Icons.qr_code, size: 35), onTap: (){
+                    displayQrcode(peers[index]['ip']);
+                  })),
                   // On/Off connection
                   Padding(padding: EdgeInsets.all(8),
                   child: Switch(value: peers[index]['enabled'], 

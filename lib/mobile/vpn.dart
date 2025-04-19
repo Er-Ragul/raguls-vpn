@@ -45,7 +45,7 @@ class _VpnMobileState extends State<VpnMobile> {
       await wireguard.startVpn(
         serverAddress: serverIP,
         wgQuickConfig: configuration,
-        providerBundleIdentifier: 'com.example.wgpanel',
+        providerBundleIdentifier: 'com.example.ragulsvpn',
       );
 
       final stage = await wireguard.stage();
