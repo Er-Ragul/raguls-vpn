@@ -137,4 +137,28 @@ function removePeer(req, res, next){
     })
 }
 
-module.exports = { generateKeys, addPeer, serverConfig, managePeer, removePeer }
+/* Reset peer's and ip pool */
+function resetConnection(res, req, next){
+    return new Promise((resolve, reject) => {
+        try {
+            execSync(`wg-quick down wg0`);
+            console.log('wg0 set to down');
+            execSync(`rm -rf /etc/wireguard/wg0.conf`);
+            console.log('wg0 config removed');
+            // execSync(`rm -rf /root/API/netdb`);
+            // console.log('IP db wiped out');
+            resolve()
+        } catch (error) {
+            console.error(`Error deleting folder: ${error.message}`);
+        }
+    })
+    .then(() => {
+        next()
+    })
+    .catch((err) => {
+        console.error(`Error: ${err}`);
+        res.status(500).json({ error: err });
+    })
+}
+
+module.exports = { generateKeys, addPeer, serverConfig, managePeer, removePeer, resetConnection }
