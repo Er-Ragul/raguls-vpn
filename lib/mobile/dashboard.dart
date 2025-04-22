@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ragulsvpn/mobile/vpn.dart';
 import 'package:ragulsvpn/mobile/panel.dart';
-import 'package:ragulsvpn/mobile/server.dart';
+import 'package:ragulsvpn/mobile/settings.dart';
 
 class DashboardMobile extends StatefulWidget {
   const DashboardMobile({super.key});
@@ -17,7 +17,7 @@ class _DashboardMobileState extends State<DashboardMobile> {
   List<Widget> body = const [
     VpnMobile(),
     PanelMobile(),
-    ServerMobile()
+    SettingsMobile()
   ];
 
   @override
@@ -42,8 +42,8 @@ class _DashboardMobileState extends State<DashboardMobile> {
             icon: Icon(Icons.dashboard)
           ),
           BottomNavigationBarItem(
-            label: 'Server',
-            icon: Icon(Icons.signal_cellular_alt)
+            label: 'Settings',
+            icon: Icon(Icons.settings)
           ),
         ],
       ),

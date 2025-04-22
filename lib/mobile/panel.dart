@@ -18,37 +18,44 @@ class _PanelMobileState extends State<PanelMobile> {
   String endpoint = '';
   String token = '';
   bool enable = false;
+  bool isLoading = true;
   List<dynamic> peers = [];
+  int count = 1;
   final TextEditingController name = TextEditingController();
   final storage = FlutterSecureStorage();
 
   @override
   void initState(){
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if(args != null){
         token = args['token'];
         endpoint = args['endpoint'];
-        print('checks $args');
         getPeers();
       }
     });
   }
 
   Future<void> getPeers() async {
-    final response = await http.get(Uri.parse('http://${endpoint}/peers'), 
-      headers: {'Authorization': 'Bearer ${token}'}
-    );
+    try{
+      final response = await http.get(Uri.parse('http://${endpoint}/peers'), 
+        headers: {'Authorization': 'Bearer ${token}'}
+      );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      setState(() {
-        peers = data['peers'];
-      });
-    } else {
-      print('GET request failed with status: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          peers = data['peers'];
+          isLoading = false;
+        });
+      } else {
+        //callAlert('Server Inactive', 'The server may not have started. Please start it from the settings.');
+        print('GET request failed with status: ${response.statusCode}');
+      }
+    }
+    catch(err){
+      print(err);
     }
   }
 
@@ -62,7 +69,7 @@ class _PanelMobileState extends State<PanelMobile> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token'
         },
-        body: jsonEncode({ 'name': name.text }),
+        body: jsonEncode({ 'type': 'add', 'name': name.text }),
       );
 
       if (response.statusCode == 200) {
@@ -71,7 +78,7 @@ class _PanelMobileState extends State<PanelMobile> {
         print('POST Response: $data');
         getPeers();
       } else {
-        print('POST request failed with status: ${response.statusCode}');
+        callAlert('Server Error', 'Server might be down. Please check and try again.');
       }
     }
     else{
@@ -178,7 +185,6 @@ class _PanelMobileState extends State<PanelMobile> {
 
   @override
   Widget build(BuildContext context) {
-    getPeers();
     return Scaffold(
       appBar: AppBar(title: Text('Connection Panel', style: GoogleFonts.poppins(color: Colors.white)), 
       backgroundColor: Colors.deepPurpleAccent, 
@@ -206,7 +212,8 @@ class _PanelMobileState extends State<PanelMobile> {
           ]),
           // List of connections
           SizedBox(height: 15),
-          Expanded(child: ListView.builder(
+          Expanded(child: isLoading ? Center(child: CircularProgressIndicator()):  
+            ListView.builder(
             itemCount: peers.length,
             itemBuilder: (context, index){
               return Card(child: Row(

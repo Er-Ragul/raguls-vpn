@@ -24,9 +24,6 @@ class _LoginMobileState extends State<LoginMobile> {
       try{
         String? result = await storage.read(key: 'user_data');
 
-        print('checks ${result}');
-        print('checks ${password.text}');
-
         if(result != null){
           final Map<String, dynamic> userData = jsonDecode(result);
 
@@ -47,12 +44,17 @@ class _LoginMobileState extends State<LoginMobile> {
 
             String result = jsonEncode(user);
             await storage.write(key: 'user_data', value: result);    
+            print('getToken ${received['token']}');
             
             Navigator.pushReplacementNamed(context, '/dashboard', arguments: {'token': received['token'], 'endpoint': userData['endpoint']});
           } 
           else{
+            callAlert('Invalid Password', 'Invalid password or user may not exist');
             print('POST request failed with status: ${response.statusCode}');
           }
+        }
+        else{
+          callAlert('Invalid Password', 'Invalid password or user may not exist');
         }
       }
       catch(err){
