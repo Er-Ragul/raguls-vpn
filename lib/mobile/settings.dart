@@ -41,6 +41,7 @@ class _SettingsMobileState extends State<SettingsMobile> {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
+      simpleNotification('Server Started Successfully');
     } else {
       callAlert('Already Running', 'Server already running');
       print('GET request failed with status: ${response.statusCode}');
@@ -54,6 +55,7 @@ class _SettingsMobileState extends State<SettingsMobile> {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
+      simpleNotification('VPN Server Reset Successful');
     } else {
       callAlert('Incative', 'Server not running');
       print('GET request failed with status: ${response.statusCode}');
@@ -61,8 +63,23 @@ class _SettingsMobileState extends State<SettingsMobile> {
   }
 
   Future<void> logoutUser() async {
-    await storage.delete(key: 'user_data');
-    Navigator.pushReplacementNamed(context, '/login');
+    //await storage.delete(key: 'user_data');
+    String? result = await storage.read(key: 'user_data');
+
+    if(result != null){
+      final Map<String, dynamic> userData = jsonDecode(result);
+
+      Map<String, dynamic> user = {
+        'uid': userData['uid'],
+        'endpoint': userData['endpoint'],
+        'token': null
+      };
+
+      String modified = jsonEncode(user);
+      await storage.write(key: 'user_data', value: modified); 
+
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
   
   void callAlert(String title, String content){
@@ -76,6 +93,14 @@ class _SettingsMobileState extends State<SettingsMobile> {
       contentPadding: EdgeInsets.all(20),
       content: Text(content),
     ));
+  }
+
+  void simpleNotification(message){
+    final snackBar = SnackBar(
+    content: Text(message),
+    duration: Duration(seconds: 2),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   @override
