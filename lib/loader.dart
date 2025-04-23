@@ -47,12 +47,14 @@ class _LoaderState extends State<Loader> {
     return Scaffold(
       body: SafeArea(child: Container(
         width: double.infinity,
-        color: Colors.deepPurpleAccent,
+        color: Colors.white,
         child: Center(child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text("VPN", style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 90)),
-            Text("    A product of Ragul's Enterprise", style: GoogleFonts.poppins(color: Colors.white, fontSize: 10)),
+            Image.asset('assets/splashicon.png', width: 280),
+            Text("Ragul's VPN", style: GoogleFonts.poppins(fontSize: 32, color: Colors.deepPurpleAccent)),
+            SizedBox(height: 15),
+            Text("A Self Manageable Custom VPN Solution", style: GoogleFonts.poppins(color: Colors.deepPurpleAccent),)
           ],
         )),
       )),

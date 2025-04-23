@@ -39,21 +39,47 @@ class _VpnMobileState extends State<VpnMobile> {
   }
 
   Future<void> checkForConnection() async {
-    if(power && isConfig){
-      await wireguard.initialize(interfaceName: 'wg0');
+    if(isConfig){
+      if(!power){
+        await wireguard.initialize(interfaceName: 'wg0');
 
-      await wireguard.startVpn(
-        serverAddress: serverIP,
-        wgQuickConfig: configuration,
-        providerBundleIdentifier: 'com.example.ragulsvpn',
-      );
+        await wireguard.startVpn(
+          serverAddress: serverIP,
+          wgQuickConfig: configuration,
+          providerBundleIdentifier: 'com.example.ragulsvpn',
+        );
 
-      final stage = await wireguard.stage();
-      print('stage ${stage}');
+        final stage = await wireguard.stage();
+        print('stage ${stage.runtimeType}');
+        setState(() {
+          power = !power;
+        });
+      }
+      else{
+        await wireguard.stopVpn();
+        final stage = await wireguard.stage();
+        print('stage ${stage}');
+        setState(() {
+          power = !power;
+        });
+      }
     }
     else {
-      await wireguard.stopVpn();
+      callAlert('No Configuration', 'Server config missing. Scan QR to load.');
     }
+  }
+
+  void callAlert(String title, String content){
+    showDialog(context: context, builder: (context) => AlertDialog(
+      actions: [
+        TextButton(onPressed: (){
+          Navigator.of(context).pop();
+        }, child: Text('Close'))
+      ],
+      //title: Text(title),
+      contentPadding: EdgeInsets.all(20),
+      content: Text(content),
+    ));
   }
 
   @override
@@ -69,9 +95,6 @@ class _VpnMobileState extends State<VpnMobile> {
             SizedBox(height: 40),
             // Button to connect with server
             ElevatedButton.icon(onPressed: (){
-              setState(() {
-                power = !power;
-              });
               checkForConnection();
             }, 
             label: power == false ? Icon(Icons.flash_off, color: Colors.white, size: 80) : Icon(Icons.flash_on, color: Colors.white, size: 80),

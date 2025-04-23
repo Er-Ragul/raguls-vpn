@@ -20,7 +20,6 @@ class _PanelMobileState extends State<PanelMobile> {
   bool enable = false;
   bool isLoading = true;
   List<dynamic> peers = [];
-  int count = 1;
   final TextEditingController name = TextEditingController();
   final storage = FlutterSecureStorage();
 
@@ -243,7 +242,7 @@ class _PanelMobileState extends State<PanelMobile> {
                 ],
               ));
             }
-            ))
+          ))
         ]))
     );
   }

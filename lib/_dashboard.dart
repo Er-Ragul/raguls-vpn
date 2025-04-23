@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ragulsvpn/mobile/dashboard.dart';
+import 'package:ragulsvpn/tablet/dashboard.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -17,7 +18,7 @@ class _DashboardState extends State<Dashboard> {
       return DashboardMobile();
     }
     else{
-      return DashboardMobile();
+      return DashboardTablet();
     }
   }
 }

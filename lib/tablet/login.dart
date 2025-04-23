@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:validart/validart.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
 
 class LoginTablet extends StatefulWidget {
   const LoginTablet({super.key});
@@ -11,29 +14,55 @@ class LoginTablet extends StatefulWidget {
 
 class _LoginTabletState extends State<LoginTablet> {
 
-  final TextEditingController email = TextEditingController();
+  final storage = FlutterSecureStorage();
   final TextEditingController password = TextEditingController();
 
   void loginUserAccount() async {
-    final validEmail = Validart().string().email();
     final validPassword = Validart().string().min(8);
 
-    if(validEmail.validate(email.text)){
-      if(validPassword.validate(password.text)){
-        try{
+    if(validPassword.validate(password.text)){
+      try{
+        String? result = await storage.read(key: 'user_data');
 
-          //Navigator.pushReplacementNamed(context, '/dashboard');
+        if(result != null){
+          final Map<String, dynamic> userData = jsonDecode(result);
+
+          final response = await http.post(
+            Uri.parse('http://${userData['endpoint']}/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({ 'uid': userData['uid'], 'password': password.text })
+          );
+
+          if(response.statusCode == 200) {
+            final received = jsonDecode(response.body);
+
+            Map<String, dynamic> user = {
+              'uid': userData['uid'],
+              'endpoint': userData['endpoint'],
+              'token': received['token']
+            };
+
+            String result = jsonEncode(user);
+            await storage.write(key: 'user_data', value: result);    
+            print('getToken ${received['token']}');
+            
+            Navigator.pushReplacementNamed(context, '/dashboard', arguments: {'token': received['token'], 'endpoint': userData['endpoint']});
+          } 
+          else{
+            callAlert('Invalid Password', 'Invalid password or user may not exist');
+            print('POST request failed with status: ${response.statusCode}');
+          }
         }
-        catch(err){
-          print(err);
+        else{
+          callAlert('Invalid Password', 'Invalid password or user may not exist');
         }
       }
-      else{
-        callAlert('Invalid Password', 'Password should not be less than 8 characters');
+      catch(err){
+        print(err);
       }
     }
     else{
-      callAlert('Invalid Email', 'Please enter valid email address !');
+      callAlert('Invalid Password', 'Password should not be less than 8 characters');
     }
   }
 
@@ -93,16 +122,6 @@ class _LoginTabletState extends State<LoginTablet> {
                     SizedBox(height: 40),
                     // VPN logo
                     Image.asset('assets/vpn.png', width: 120),
-                    SizedBox(height: 40),
-                    // Email inputbox
-                    TextField(
-                      controller: email,
-                      style: GoogleFonts.poppins(),
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        icon: Icon(Icons.email, color: Colors.deepPurpleAccent)
-                      ),
-                    ),
                     SizedBox(height: 20),
                     // Password inputbox
                     TextField(

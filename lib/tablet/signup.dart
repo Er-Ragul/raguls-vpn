@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:validart/validart.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
 
 class SignupTablet extends StatefulWidget {
   const SignupTablet({super.key});
@@ -11,6 +14,8 @@ class SignupTablet extends StatefulWidget {
 
 class _SignupTabletState extends State<SignupTablet> {
 
+  final storage = FlutterSecureStorage();
+  final TextEditingController endpoint = TextEditingController();
   final TextEditingController email = TextEditingController();
   final TextEditingController password = TextEditingController();
   final TextEditingController repassword = TextEditingController();
@@ -19,28 +24,60 @@ class _SignupTabletState extends State<SignupTablet> {
 
     final validEmail = Validart().string().email();
     final validPassword = Validart().string().min(8);
+    bool isValidInput(String input) {
+      final ipRegex = RegExp(r'^((25[0-5]|2[0-4]\d|1\d\d|\d{1,2})\.){3}'
+                            r'(25[0-5]|2[0-4]\d|1\d\d|\d{1,2})(:\d{1,5})?$');
+      final domainRegex = RegExp(r'^(?!\-)([a-zA-Z0-9\-]{1,63}\.)+[a-zA-Z]{2,}$');
+      return ipRegex.hasMatch(input) || domainRegex.hasMatch(input);
+    }
 
-    if(validEmail.validate(email.text)){
-      if(validPassword.validate(password.text)){
-        if(password.text == repassword.text){
-          try{
+    if(isValidInput(endpoint.text)){
+      if(validEmail.validate(email.text)){
+        if(validPassword.validate(password.text)){
+          if(password.text == repassword.text){
+            try{
+              final response = await http.post(
+                Uri.parse('http://${endpoint.text}/signup'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({ 'email': email.text, 'password': password.text })
+              );
 
-            //Navigator.pushReplacementNamed(context, '/dashboard');
+              if(response.statusCode == 200) {
+                final received = jsonDecode(response.body);
+
+                Map<String, dynamic> user = {
+                  'uid': received['uid'],
+                  'endpoint': '${endpoint.text}',
+                  'token': null
+                };
+
+                String result = jsonEncode(user);
+                await storage.write(key: 'user_data', value: result);    
+                
+                Navigator.pushReplacementNamed(context, '/login');
+              } 
+              else{
+                print('POST request failed with status: ${response.statusCode}');
+              }
+            }
+            catch(err){
+              print(err);
+            }
           }
-          catch(err){
-            print(err);
+          else{
+            callAlert('Password Mismatch', 'Password is not matching');
           }
         }
         else{
-          callAlert('Password Mismatch', 'Password is not matching');
+          callAlert('Invalid Password', 'Password should not be less than 8 characters');
         }
       }
       else{
-        callAlert('Invalid Password', 'Password should not be less than 8 characters');
+        callAlert('Invalid Email', 'Please enter valid email address !');
       }
     }
     else{
-      callAlert('Invalid Email', 'Please enter valid email address !');
+      callAlert('Invalid Address', 'Please enter valid server IP or FQDN !');
     }
   }
 
@@ -101,6 +138,16 @@ class _SignupTabletState extends State<SignupTablet> {
                     // VPN logo
                     Image.asset('assets/vpn.png', width: 120),
                     SizedBox(height: 40),
+                    // Link inputbox
+                    TextField(
+                      controller: endpoint,
+                      style: GoogleFonts.poppins(),
+                      decoration: InputDecoration(
+                        labelText: 'Server IP (or) FQDN',
+                        icon: Icon(Icons.link, color: Colors.deepPurpleAccent)
+                      ),
+                    ),
+                    SizedBox(height: 20),
                     // Email inputbox
                     TextField(
                       controller: email,
