@@ -17,11 +17,11 @@ function generateKeys(req, res, next) {
         resolve()
     })
     .then(() => {
-        console.log(req.keys);
+        console.log('Success at line no. 17 [middleware] - Keys generated')
         next()
     })
     .catch((err) => {
-        console.error(`Error: ${err}`);
+        console.log('Error at line no. 24 [middleware] - ', err)
         res.status(500).json({ error: err });
     })
 }
@@ -33,18 +33,17 @@ function addPeer(req, res, next) {
 
         try {
             execSync(add);
-            console.log('Peer added successfully.');
             resolve()
         } catch (err) {
-            reject()
-            console.error('Failed to add peer:', err.message);
+            reject(err.message)
         }
     })
     .then(() => {
+        console.log('Success at line no. 43 [middleware] - Peer added')
         next()
     })
     .catch((err) => {
-        console.error(`Error: ${err}`);
+        console.log('Error at line no. 47 [middleware] - ', err)
         res.status(500).json({ error: err });
     })
 }
@@ -57,30 +56,40 @@ function serverConfig(req, res, next) {
         [Interface]
 PrivateKey = ${req.keys.private}
 Address = 10.0.0.1/24
-ListenPort = 51820`
+ListenPort = 51820
+
+# Enable IP forwarding and set up NAT using iptables
+PostUp = sysctl -w net.ipv4.ip_forward=1
+PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT
+PostUp = iptables -A FORWARD -o wg0 -j ACCEPT
+
+# Clean up iptables rules on interface shutdown
+PostDown = iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT
+PostDown = iptables -D FORWARD -o wg0 -j ACCEPT`
 
         fs.writeFile('/etc/wireguard/wg0.conf', wgConfig.trim(), { mode: 0o600 }, (err) => {
             if (err) {
-                console.error('Failed to write wg0.conf:', err.message);
+                console.log('Error at line no. 74 [middleware] - ', err)
             } else {
                 let run = `wg-quick up wg0`;
 
                 try {
                     execSync(run);
-                    console.log('Wireguard (wg0) started successfully');
                     resolve()
                 } catch (err) {
-                    reject()
-                    console.error('Failed to start wg0:', err.message);
+                    reject(err.message)
                 }
             }
         });
     })
     .then(() => {
+        console.log('Success at line no. 89 [middleware] - Wireguard (wg0) started')
         next()
     })
     .catch((err) => {
-        console.error(`Error: ${err}`);
+        console.log('Error at line no. 92 [middleware] - ', err)
         res.status(500).json({ error: err });
     })
 }
@@ -96,10 +105,11 @@ function managePeer(req, res, next){
             resolve()
         })
         .then(() => {
+            console.log('Success at line no. 108 [middleware] - IP unblocked')
             next()
         })
         .catch((err) => {
-            console.error(`Error: ${err}`);
+            console.log('Error at line no. 111 [middleware] - ', err)
             res.status(500).json({ error: err });
         })
     }
@@ -111,10 +121,11 @@ function managePeer(req, res, next){
             resolve()
         })
         .then(() => {
+            console.log('Success at line no. 124 [middleware] - IP blocked')
             next()
         })
         .catch((err) => {
-            console.error(`Error: ${err}`);
+            console.log('Error at line no. 128 [middleware] - ', err)
             res.status(500).json({ error: err });
         })
     }
@@ -129,10 +140,11 @@ function removePeer(req, res, next){
         resolve()
     })
     .then(() => {
+        console.log('Success at line no. 143 [middleware] - Peer removed')
         next()
     })
     .catch((err) => {
-        console.error(`Error: ${err}`);
+        console.log('Error at line no. 147 [middleware] - ', err)
         res.status(500).json({ error: err });
     })
 }
@@ -153,10 +165,11 @@ function resetConnection(res, req, next){
         }
     })
     .then(() => {
+        console.log('Success at line no. 168 [middleware] - Hard reset')
         next()
     })
     .catch((err) => {
-        console.error(`Error: ${err}`);
+        console.log('Error at line no. 172 [middleware] - ', err)
         res.status(500).json({ error: err });
     })
 }

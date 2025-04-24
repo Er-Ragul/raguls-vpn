@@ -23,17 +23,16 @@ async function initDB(req, res, next) {
         try {
             for await (const [key, value] of netdb.iterator()) {
                 await netdb.del(key)
-                console.log('Deleted: ', key);
             }
             await netdb.put('ip_pool', '10.0.0.1');
             console.log("IP Pool Created")
         
             await netdb.put('reusable_ip', [])
-            console.log("Reusable IP Initiated")
+            console.log("Reusable IP Pool Created")
         
             next()
         } catch (err) {
-            console.error('Error while reading data:', err);
+            console.log('Error at line no. 35 - ', err)
             res.status(500).json({ status: 'failed', message: 'Internal server error' });
         }
     }
@@ -47,19 +46,16 @@ async function resetDB(req, res, next) {
     try {
         for await (const [key, value] of netdb.iterator()) {
             await netdb.del(key)
-            console.log('Deleted: ', key);
         }
-    
+        console.log('DB Reset Completed')
         next()
     } catch (err) {
-        console.error('Error while reading data:', err);
+        console.log('Error at line no. 53 - ', err)
         res.status(500).json({ status: 'failed', message: 'Internal server error' });
     }
 }
 
-async function addRecord(req, res, next) {
-    console.log(req.body);
-    
+async function addRecord(req, res, next) {    
     if(req.body.type == 'init'){
         await netdb.put(req.body.ip, {
         name: req.body.name, 
@@ -68,7 +64,7 @@ async function addRecord(req, res, next) {
         public: req.keys.public, 
         enabled: true})
         const value = await netdb.get(req.body.ip)
-        console.log(value)
+        console.log('Success at line no. 67 - Record Saved (Name, IP, Keys, status) [New]')
         next()
     }
     else{
@@ -79,7 +75,7 @@ async function addRecord(req, res, next) {
         public: req.keys.public, 
         enabled: true})
         const value = await netdb.get(req.iptype.address)
-        console.log(value)
+        console.log('Success at line no. 78 - Record Saved (Name, IP, Keys, status) [Reuse]')
         next()
     }
 }
@@ -89,12 +85,14 @@ async function deleteRecord(address){
     let reuse = await netdb.get('reusable_ip')
     reuse.push(address)
     await netdb.put('reusable_ip', reuse)
+    console.log('Success at line no. 88 - Record Deleted')
 }
 
 async function updateRecord(address, cmd){
     let value = await netdb.get(address)
     value['enabled'] = cmd
     await netdb.put(address, value)
+    console.log('Success at line no. 95 - Record Updated')
 }
 
 async function setUser(req, res, next) {
@@ -106,10 +104,12 @@ async function setUser(req, res, next) {
             let uid = new Date().getTime()
             req.uid = uid
             await userdb.put(uid, {email, hash, uid})
+            console.log('Success at line no. 107 - User created')
             next()
         });
     }
     catch(err){
+        console.log('Error at line no. 112 - ', err)
         res.status(500).json({status: 'failed', message: 'Failed to create user.'})
     }
 }
@@ -125,10 +125,11 @@ async function getUser(req, res, next) {
             // const token = jwt.sign({ userid: value['uid'] }, 'SECRET_KEY', { expiresIn: '1h' });
             const token = jwt.sign({ userid: value['uid'] }, 'SECRET_KEY');
             req.token = token
+            console.log('Success at line no. 128 - Passwored signed')
             next()
         }
         else{
-            console.log(err);
+            console.log('Error at line no. 132 - ', err)
             res.status(401).json({status: 'failed', uid, message: 'Invalid password'});
         }
     });
@@ -148,16 +149,10 @@ PublicKey = ${serverKey['public']}
 AllowedIPs = 0.0.0.0/0,::/0
 PersistentKeepalive = 25
 Endpoint = ${process.env.SERVERIP}:51820`
-    
-        console.log(template);
-    
-        // QRCode.toString(template, { type: 'terminal' }, function (err, url) {
-        //     if (err) return console.error(err);
-        //     console.log(url);
-        // });
         
         QRCode.toFile(`qrcode/${req.body.ip}.png`, template, function (err) {
             if(err) {
+                console.log('Error at line no. 155 - ', err)
                 res.status(500).json({status: 'failed', message: 'Failed to create QR'})
             }
             
@@ -170,11 +165,13 @@ Endpoint = ${process.env.SERVERIP}:51820`
 
             req.qrcode = `data:${mimeType};base64,${base64String}`
 
+            console.log('Success at line no. 168 - QR generated')
+
             next()
         });
     }
     catch(err){
-        console.log(err);
+        console.log('Error at line no. 174 - ', err)
         res.status(500).json({status: 'failed', message: 'Failed to create QR'})
     }
 }
@@ -184,16 +181,18 @@ function verifyToken(req, res, next){
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log('Error at line no. 184 - No token provided')
         return res.status(401).json({ status: 'failed', message: "No token provided" });
     }
 
     const token = authHeader.split(' ')[1];
 
     try {
+        console.log('Success at line no. 191 - Token verified')
         const decoded = jwt.verify(token, 'SECRET_KEY');
         next()
     } catch (err) {
-        console.log('Verification failed');
+        console.log('Error at line no. 195 - ', err)
         res.status(401).json({ message: "Invalid token" });
     }
 }
@@ -213,7 +212,7 @@ async function reserveIP(req, res, next){
             }
 
             req.iptype = iptype
-
+            console.log('Success at line no. 215 - IP reused')
             next()
         }
         else{
@@ -230,13 +229,13 @@ async function reserveIP(req, res, next){
                 }
 
                 req.iptype = iptype
-
+                console.log('Success at line no. 232 - IP allocated')
                 next()
             }
         }
     }
     catch(err){
-        console.log(err);
+        console.log('Error at line no. 238 - ', err)
         res.status(500).json({ status: 'failed', message: 'Internal server error' });
     }
 }
@@ -256,9 +255,10 @@ async function getAllPeers(req, res, next) {
             }
         })
         req.peers = respond
+        console.log('Success at line no. 258 - Peers read')
         next()
     } catch (err) {
-        console.error('Error while reading data:', err);
+        console.log('Error at line no. 260 - ', err)
         res.status(500).json({ status: 'failed', message: 'Internal server error' });
     }
 }
