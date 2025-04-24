@@ -1,4 +1,4 @@
-package com.example.ragulsvpn
+package com.raguls.vpn
 
 import io.flutter.embedding.android.FlutterActivity
 

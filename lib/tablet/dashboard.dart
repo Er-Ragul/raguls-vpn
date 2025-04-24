@@ -72,7 +72,7 @@ class _DashboardTabletState extends State<DashboardTablet> {
         await wireguard.startVpn(
           serverAddress: serverIP,
           wgQuickConfig: configuration,
-          providerBundleIdentifier: 'com.example.ragulsvpn',
+          providerBundleIdentifier: 'com.raguls.vpn',
         );
 
         final stage = await wireguard.stage();
@@ -106,7 +106,7 @@ class _DashboardTabletState extends State<DashboardTablet> {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      simpleNotification('Server Started Successfully');
+      simpleNotification('VPN Server Started Successfully');
     } else {
       callAlert('Already Running', 'Server already running');
       print('GET request failed with status: ${response.statusCode}');
@@ -305,6 +305,7 @@ class _DashboardTabletState extends State<DashboardTablet> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SafeArea(child: Row(
         children: [
           // Left side
@@ -379,7 +380,7 @@ class _DashboardTabletState extends State<DashboardTablet> {
                     leading: Icon(Icons.edit),
                     title: Text('Password Reset'),
                     onTap: (){
-                      print('Password Reset clicked');
+                      simpleNotification('This feature will be activated in the next update.');
                     },
                   ),
                   Divider(height: 0),
